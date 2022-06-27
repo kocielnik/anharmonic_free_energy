@@ -1,5 +1,5 @@
-import numpy as np
 import os
+import numpy as np
 
 
 hb_J = 1.0545718e-34 #J*s
@@ -10,23 +10,39 @@ J2ev = 1/ev2J
 cm2hz = .02998*10**12
 atomic2s = 2.418* 10**-17
 
-#returns list of files in fpath directory
 def list_of_files(fpath):
-    return [f for f in os.listdir(fpath) if os.path.isfile(os.path.join(fpath, f))]
+    """
+    Returns the list of files under in fpath directory.
 
-#returns list of folders in fpath directory
+    Example:
+
+    >>> assert "README.md" in list_of_files(".")
+    """
+    return [
+        f for f in os.listdir(fpath) if os.path.isfile(os.path.join(fpath, f))
+    ]
+
 def list_of_directories(fpath):
+    """
+    Returns list of folders in fpath directory
+
+    Example:
+
+    >>> assert "anharmonic_free_energy" in list_of_directories("..")
+    """
     return list(set(os.listdir(fpath))-set(list_of_files(fpath)))
 
-#performs integration with trapezoid method
 def intgrt(x, y):
+    """
+    Performs integration with trapezoid method
+    """
     I = [0]
     err = [0]
     for i in range(1, len(x)):
         I.append(np.trapz(y[:i+1], x[:i+1]))
         y_p = np.gradient(y[:i+1])
         err.append((((x[-1]-x[0])**2)/(12*len(x)**2))*(y_p[-1]-y_p[0]))
-        
+
     I = np.array(I)
     err = np.array(err)
     return I, err
@@ -192,13 +208,13 @@ def integrated_ff_2_dft(fpath, nmols):
         ff_dft_du_err.append((pot_1_er + pot_2_er)/2)
         ff_dft_du.append(np.mean(pot_2 - pot_1)/nmols)
         _lambda.append(float(subf))
-    
+
     idx = np.argsort(_lambda)
     _lambda = np.array(_lambda)[idx]
     ff_dft_du = np.array(ff_dft_du)[idx]
     ff_dft_du_err = np.array(ff_dft_du_err)[idx]
     lambda_av = np.mean(np.gradient(_lambda))
-    
+
     F_ff_dft, F_ff_dft_err_int = intgrt(_lambda, ff_dft_du/lambda_av)
     F_ff_dft_err_md, _a = intgrt(_lambda, ff_dft_du_err/lambda_av)
     return F_ff_dft, F_ff_dft_err_md, F_ff_dft_err_int
