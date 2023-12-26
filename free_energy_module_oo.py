@@ -35,6 +35,11 @@ def list_of_directories(fpath):
 def intgrt(x, y):
     """
     Performs integration with trapezoid method
+
+    Example:
+
+    >>> intgrt([], [])
+    (array([0]), array([0]))
     """
     I = [0]
     err = [0]
@@ -269,7 +274,10 @@ class fe_sample:
 
         ###calculatin angarmonic free energy##
         #calculating anharmonic integral
-        self.u_harm = harmonic_potential_energy(self.Tf, self.__u_harm_natoms)/self.__u_harm_nmols
+        potential_energy = harmonic_potential_energy(
+            self.Tf, self.__u_harm_natoms
+        )
+        self.u_harm = potential_energy/self.__u_harm_nmols
         self.u_anharm = anharmonic_energy(self.u_md, self.u_harm, self.U_latt)
         (
             self.anharm_integral,
