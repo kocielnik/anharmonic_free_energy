@@ -1,3 +1,7 @@
+"""
+Anharmonic free energy
+"""
+
 import os
 import numpy as np
 
@@ -52,16 +56,26 @@ def intgrt(x, y):
     err = np.array(err)
     return I, err
 
-def lammps_log_to_U_latt(fpath):
-    file = open(fpath+'log.lammps')
-    lines = file.readlines()
-    file.close()
+def lammps_log_to_U_latt(fpath, suffix='log.lammps'):
+    """
+    >>> lammps_log_to_U_latt('/dev/null', suffix='')
+    Traceback (most recent call last):
+    ...
+    IndexError: list index out of range
+    """
+    with open(fpath+suffix, encoding='utf-8') as file:
+        lines = file.readlines()
+
     last_step = [i-1 for i in range(len(lines)) if lines[i][:9]=='Loop time'][0]
     return float(lines[last_step].split()[1])
 
-#calculates harmonic freee energy - quantum and classic - at given temperature at gamma
-#reads eigenvalues in atomic units, omiting first line - ipi format
 def ipi_harmonic_free_energy(fpath, T, nmols, U_latt):
+    """
+    Calculates harmonic free energy - quantum and classic - at given
+    temperature at gamma.
+
+    Reads eigenvalues in atomic units, omiting first line - ipi format.
+    """
     file = open(fpath)
     lines = file.readlines()[1:]
     file.close()
@@ -73,10 +87,10 @@ def ipi_harmonic_free_energy(fpath, T, nmols, U_latt):
     freq = omega/(2*np.pi)
     freq =  freq  / atomic2s
     omega = freq * 2*np.pi
-    
+
     Fq = []
     Fc = []
-    for T_ in T:        
+    for T_ in T:
         beta = 1/(T_*kb_J)
         Fq.append(
                 np.sum(
@@ -101,10 +115,10 @@ def phonopy_harmonic_free_energy(fpath, T, nmols, U_latt):
     f = data[:,0]*cm2hz
     omega = f * 2*np.pi
     dos = data[:,1]
-    
+
     Fq = []
     Fc = []
-    for T_ in T:        
+    for T_ in T:
         beta = 1/(T_*kb_J)
         Fq.append(
                 np.sum(
@@ -146,7 +160,7 @@ def ipi_md_potential(fpath, nmols, bexclude=1000):
     sub = np.array(subfolders, int)
     idx = np.argsort(sub)
     subfolders = subfolders[idx]
-        
+
     T = []
     U = []
     err = []
@@ -166,7 +180,10 @@ def ipi_md_potential(fpath, nmols, bexclude=1000):
         err.append(
                 _error_from_u(data_matrix[:,5])
                 )
-    return np.asanyarray(T), np.asanyarray(subfolders, float), np.asanyarray(U)/nmols, np.asanyarray(err)/nmols
+    return (
+        np.asanyarray(T), np.asanyarray(subfolders, float),
+        np.asanyarray(U)/nmols, np.asanyarray(err)/nmols
+    )
 
 #returns harmonic potential energy for given nuner of atoms
 def harmonic_potential_energy(T,N):
@@ -190,7 +207,7 @@ def ipi_to_two_potentials(path, cut=200):
     file = open(path)
     lines = file.readlines()[1:]
     file.close()
-    
+
     idx = [i for i in range(len(lines)) if lines[i][0]=='#'][-1]+1
     lines = lines[idx:]
 
@@ -200,7 +217,7 @@ def ipi_to_two_potentials(path, cut=200):
     pot_2 = data[cut:, 8]
     pot_1_er = _error_from_u(pot_1)
     pot_2_er = _error_from_u(pot_2)
-    
+
     return time, pot_1, pot_2, pot_1_er, pot_2_er
 
 def integrated_ff_2_dft(fpath, nmols):
@@ -246,17 +263,19 @@ class fe_sample:
         self.__fharm_nmols_ipi = fharm_nmols_ipi
         self.__ff_dft_fpath = ff_dft_fpath
         self.__ff_dft_nmols = ff_dft_nmols
-        
+
         #read lattice energy
-        self.U_latt = lammps_log_to_U_latt(self.__ulatt_fpath )/self.__ulatt_nmols
-        
+        self.U_latt = lammps_log_to_U_latt(
+            self.__ulatt_fpath
+        )/self.__ulatt_nmols
+
         #read temperature and u_md
         self.T, self.Tf, self.u_md, self.u_md_err = ipi_md_potential(
                 self.__md_fpath,
                 self.__md_nmols,
                 bexclude=1000,
                 )
-        
+
         ###calculate harmonic free energy, quantum and classical###
         self.F_harm_q_ipi, self.F_harm_c_ipi = ipi_harmonic_free_energy(
                 self.__fharm_fpath_ipi,
@@ -287,22 +306,27 @@ class fe_sample:
 
         #calculating harmonic part
         self.f_harm_part = (self.F_harm_c_ipi[0]-self.U_latt)*self.Tf/self.Tf[0]
-        
+
         #calculating kinetic part
-        self.f_class_nucl = kb_ev*self.Tf*(3*self.__u_harm_natoms-3)*np.log(self.Tf/self.Tf[0])/self.__u_harm_nmols
-        
+        self.f_class_nucl = kb_ev*self.Tf*(
+            3*self.__u_harm_natoms-3
+        )*np.log(self.Tf/self.Tf[0])/self.__u_harm_nmols
+
         #calculating classical anharmonic free energy
-        self.F_anh_c = self.U_latt + self.f_harm_part - self.f_class_nucl - self.anharm_integral*kb_ev*self.Tf
-        
+        self.F_anh_c = (
+            self.U_latt + self.f_harm_part - self.f_class_nucl
+            - self.anharm_integral*kb_ev*self.Tf
+        )
+
         #calculating quantum anharmonic free energy
         self.F_anh_q = self.F_anh_c + self.F_harm_q_ipi - self.F_harm_c_ipi
-        
+
         #calculating the error of the TI parht of anharmonic free energy
         self.F_err_int_ti = self.Tf*self.anharm_integral_err*kb_ev
-        
+
         #calculating the error of the TI parht of anharmonic free energy
         self.F_err_md = self.Tf*self.anharm_integral_md_err*kb_ev
-        
+
         self.F_anh_err = (
                 np.absolute(self.F_err_md) +
                 np.absolute(self.F_err_int_ti)
